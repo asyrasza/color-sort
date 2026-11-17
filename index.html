@@ -144,6 +144,7 @@
   <h1>Bead Sort</h1>
   <div class="stats">
     <span>Colors <b id="sColors">–</b></span>
+    <span>Rod <b id="sHeight">–</b></span>
     <span>Moves <b id="sMoves">0</b></span>
     <span>Time <b id="sTime">0:00</b></span>
     <span>Sorted <b id="sSorted">0</b></span>
@@ -162,12 +163,17 @@
   <div class="modal">
     <h2>New game</h2>
     <div class="range-row">
-      <span>Colors</span>
+      <span style="width:100px">Colors</span>
       <input type="range" id="colorRange" min="5" max="15" value="8">
       <output id="colorOut">8</output>
     </div>
+    <div class="range-row" style="margin-top:10px">
+      <span style="width:100px">Beads per rod</span>
+      <input type="range" id="beadRange" min="3" max="15" value="8">
+      <output id="beadOut">8</output>
+    </div>
     <div class="preview" id="colorPreview"></div>
-    <p class="hint">You get one rod per color plus one empty spare rod. Each rod holds as many beads as there are colors. Click a rod to pick up its top bead, then click another rod to drop it.</p>
+    <p class="hint">You get one rod per color plus one empty spare rod. Each color has as many beads as a rod holds, so every rod starts full. Click a rod to pick up its top bead, then click another rod to drop it.</p>
     <div class="row">
       <button id="newCancel">Cancel</button>
       <button id="newStart" class="primary">Start</button>
@@ -236,9 +242,9 @@
   let lastTick = Date.now();
 
   // ---------- game logic ----------
-  function newGame(n) {
+  function newGame(n, h) {
     const beads = [];
-    for (let c = 0; c < n; c++) for (let k = 0; k < n; k++) beads.push(c);
+    for (let c = 0; c < n; c++) for (let k = 0; k < h; k++) beads.push(c);
     let rods;
     do {
       for (let i = beads.length - 1; i > 0; i--) {
@@ -246,20 +252,20 @@
         [beads[i], beads[j]] = [beads[j], beads[i]];
       }
       rods = [[]]; // rod 0 = empty spare at the side
-      for (let r = 0; r < n; r++) rods.push(beads.slice(r * n, (r + 1) * n));
-    } while (countSorted(rods, n) > 0);
-    state = { n, rods, moves: 0, history: [], elapsed: 0, won: false };
+      for (let r = 0; r < n; r++) rods.push(beads.slice(r * h, (r + 1) * h));
+    } while (countSorted(rods, h) > 0);
+    state = { n, h, rods, moves: 0, history: [], elapsed: 0, won: false };
     selected = -1;
     afterChange(false);
   }
 
-  function countSorted(rods, n) {
-    return rods.filter(r => r.length === n && r.every(c => c === r[0])).length;
+  function countSorted(rods, h) {
+    return rods.filter(r => r.length === h && r.every(c => c === r[0])).length;
   }
 
-  function isWon() { return countSorted(state.rods, state.n) === state.n; }
+  function isWon() { return countSorted(state.rods, state.h) === state.n; }
 
-  function canDrop(to) { return state.rods[to].length < state.n; }
+  function canDrop(to) { return state.rods[to].length < state.h; }
 
   function move(from, to, record = true) {
     const bead = state.rods[from].pop();
@@ -298,7 +304,7 @@
   function afterChange(checkWin) {
     if (checkWin && isWon()) {
       state.won = true;
-      $('winText').textContent = `${state.n} colors sorted in ${state.moves} moves and ${fmtTime(state.elapsed)}.`;
+      $('winText').textContent = `${state.n} colors × ${state.h} beads sorted in ${state.moves} moves and ${fmtTime(state.elapsed)}.`;
       setTimeout(() => openModal('winModal'), 250);
     }
     autosave();
@@ -313,30 +319,30 @@
     const rods = state.n + 1;
     // slot width = bw * 1.15, plus one extra gap for the spare rod
     const bwByW = W / ((rods + 0.8) * 1.15);
-    const bwByH = H / ((state.n + 2.6) * 0.62);
+    const bwByH = H / ((state.h + 2.6) * 0.62);
     const bw = Math.max(18, Math.min(bwByW, bwByH, 74));
     const bh = bw * 0.62;
     rack.style.setProperty('--bw', bw + 'px');
     rack.style.setProperty('--bh', bh + 'px');
     rack.style.setProperty('--slot', bw * 1.15 + 'px');
     rack.style.setProperty('--gap', bw * 0.8 + 'px');
-    rack.style.setProperty('--poleH', (state.n + 0.6) * bh + 'px');
-    rack.style.setProperty('--rodH', (state.n + 2.4) * bh + 'px');
+    rack.style.setProperty('--poleH', (state.h + 0.6) * bh + 'px');
+    rack.style.setProperty('--rodH', (state.h + 2.4) * bh + 'px');
   }
 
   function render() {
     if (!state) return;
     layout();
     rack.querySelectorAll('.rod').forEach(e => e.remove());
-    const n = state.n;
+    const n = state.n, h = state.h;
     state.rods.forEach((beads, i) => {
       const rod = document.createElement('div');
       rod.className = 'rod';
       rod.style.width = 'var(--slot)';
       rod.style.height = 'var(--rodH)';
       if (i === 0) rod.classList.add('spare');
-      if (beads.length === n && beads.every(c => c === beads[0])) rod.classList.add('done');
-      if (selected !== -1 && i !== selected && beads.length < n) rod.classList.add('target');
+      if (beads.length === h && beads.every(c => c === beads[0])) rod.classList.add('done');
+      if (selected !== -1 && i !== selected && beads.length < h) rod.classList.add('target');
       const pole = document.createElement('div');
       pole.className = 'pole';
       rod.appendChild(pole);
@@ -349,9 +355,10 @@
       rack.appendChild(rod);
     });
     $('sColors').textContent = n;
+    $('sHeight').textContent = h;
     $('sMoves').textContent = state.moves;
     $('sTime').textContent = fmtTime(state.elapsed);
-    $('sSorted').textContent = `${countSorted(state.rods, n)}/${n}`;
+    $('sSorted').textContent = `${countSorted(state.rods, h)}/${n}`;
     $('undoBtn').disabled = !state.history.length || state.won;
   }
 
@@ -397,7 +404,7 @@
     return JSON.parse(JSON.stringify({ ...state, savedAt: Date.now() }));
   }
   function restore(snap) {
-    state = { n: snap.n, rods: snap.rods, moves: snap.moves, history: snap.history || [],
+    state = { n: snap.n, h: snap.h || snap.n, rods: snap.rods, moves: snap.moves, history: snap.history || [],
               elapsed: snap.elapsed || 0, won: !!snap.won };
     selected = -1;
     lastTick = Date.now();
@@ -415,7 +422,7 @@
       const row = document.createElement('div');
       row.className = 'slot';
       const info = s
-        ? `<div class="info">${s.n} colors · ${s.moves} moves · ${fmtTime(s.elapsed)} · ${countSorted(s.rods, s.n)}/${s.n} sorted${s.won ? ' ✓' : ''}
+        ? `<div class="info">${s.n} colors × ${s.h || s.n} beads · ${s.moves} moves · ${fmtTime(s.elapsed)} · ${countSorted(s.rods, s.h || s.n)}/${s.n} sorted${s.won ? ' ✓' : ''}
              <small>${new Date(s.savedAt).toLocaleString()}</small></div>`
         : `<div class="info empty">Empty</div>`;
       row.innerHTML = `<span class="num">${i + 1}</span>${info}`;
@@ -456,17 +463,19 @@
   function updatePreview() {
     const n = +$('colorRange').value;
     $('colorOut').textContent = n;
+    $('beadOut').textContent = $('beadRange').value;
     $('colorPreview').innerHTML = COLORS.slice(0, n)
       .map(c => `<span title="${c.name}" style="background:${c.c}"></span>`).join('');
   }
 
   $('newBtn').onclick = () => {
-    if (state) $('colorRange').value = state.n;
+    if (state) { $('colorRange').value = state.n; $('beadRange').value = state.h; }
     updatePreview(); openModal('newModal');
   };
   $('colorRange').oninput = updatePreview;
+  $('beadRange').oninput = updatePreview;
   $('newCancel').onclick = () => closeModal('newModal');
-  $('newStart').onclick = () => { closeModal('newModal'); newGame(+$('colorRange').value); };
+  $('newStart').onclick = () => { closeModal('newModal'); newGame(+$('colorRange').value, +$('beadRange').value); };
   $('slotsBtn').onclick = () => { renderSlots(); openModal('slotModal'); };
   $('slotClose').onclick = () => closeModal('slotModal');
   $('winClose').onclick = () => closeModal('winModal');
@@ -498,7 +507,7 @@
     const a = JSON.parse(localStorage.getItem(AUTO_KEY) || 'null');
     if (a && a.rods && a.n >= 5 && a.n <= 15) { restore(a); resumed = true; }
   } catch {}
-  if (!resumed) { newGame(8); updatePreview(); openModal('newModal'); }
+  if (!resumed) { newGame(8, 8); updatePreview(); openModal('newModal'); }
 })();
 </script>
 </body>
