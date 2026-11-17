@@ -1,0 +1,505 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Bead Sort</title>
+<style>
+  :root {
+    --bg: #f4efe6;
+    --panel: #ffffff;
+    --text: #2a2622;
+    --muted: #7a7168;
+    --accent: #2f6fdb;
+    --wood1: #d9b98a;
+    --wood2: #b8925e;
+    --pole1: #8c949c;
+    --pole2: #5d646b;
+    --shadow: 0 6px 24px rgba(0,0,0,.18);
+  }
+  * { box-sizing: border-box; }
+  html, body { height: 100%; margin: 0; }
+  body {
+    font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    background: radial-gradient(ellipse at top, #fffaf2, var(--bg));
+    color: var(--text);
+    display: flex; flex-direction: column;
+    overflow: hidden;
+    user-select: none;
+  }
+  header {
+    display: flex; flex-wrap: wrap; align-items: center; gap: 10px;
+    padding: 10px 16px;
+    background: var(--panel);
+    box-shadow: 0 2px 8px rgba(0,0,0,.08);
+    z-index: 5;
+  }
+  header h1 { font-size: 18px; margin: 0 12px 0 0; letter-spacing: .5px; }
+  .stats { display: flex; gap: 14px; color: var(--muted); font-variant-numeric: tabular-nums; font-size: 14px; }
+  .stats b { color: var(--text); }
+  .spacer { flex: 1; }
+  button {
+    font: inherit; font-size: 14px;
+    padding: 7px 14px; border-radius: 8px;
+    border: 1px solid #d6cfc6; background: #fff; color: var(--text);
+    cursor: pointer;
+  }
+  button:hover:not(:disabled) { background: #f3eee7; }
+  button:disabled { opacity: .45; cursor: default; }
+  button.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+  button.primary:hover { background: #255bb8; }
+  button.danger { color: #b3261e; }
+  label.toggle { font-size: 14px; color: var(--muted); display: flex; align-items: center; gap: 5px; cursor: pointer; }
+
+  #board {
+    flex: 1; position: relative;
+    display: flex; align-items: flex-end; justify-content: center;
+    padding: 12px 16px 28px;
+    min-height: 0;
+  }
+  #rack { position: relative; display: flex; align-items: flex-end; }
+  #base {
+    position: absolute; left: -10px; right: -10px; bottom: -14px; height: 18px;
+    background: linear-gradient(var(--wood1), var(--wood2));
+    border-radius: 4px; box-shadow: 0 4px 10px rgba(0,0,0,.2);
+  }
+  .rod {
+    position: relative; display: flex; flex-direction: column-reverse; align-items: center;
+    cursor: pointer;
+    border-radius: 10px;
+    transition: background .15s;
+  }
+  .rod:hover { background: rgba(0,0,0,.04); }
+  .rod.spare { margin-right: var(--gap); }
+  .rod.target { background: rgba(47,111,219,.10); }
+  .rod.done .pole { background: linear-gradient(90deg, #6fbf73, #2e7d32); }
+  .pole {
+    position: absolute; bottom: 0; left: 50%;
+    width: calc(var(--bw) * .22); transform: translateX(-50%);
+    height: var(--poleH);
+    background: linear-gradient(90deg, var(--pole1), var(--pole2) 70%, var(--pole1));
+    border-radius: 4px 4px 0 0;
+  }
+  .bead {
+    position: relative; z-index: 1;
+    width: var(--bw); height: var(--bh);
+    border-radius: calc(var(--bh) * .28);
+    background:
+      linear-gradient(90deg, rgba(0,0,0,.28), rgba(255,255,255,.22) 30%, rgba(255,255,255,.05) 55%, rgba(0,0,0,.30)),
+      var(--c);
+    box-shadow: inset 0 -2px 0 rgba(0,0,0,.25), inset 0 2px 0 rgba(255,255,255,.25);
+    display: flex; align-items: center; justify-content: center;
+    font-weight: 700; font-size: calc(var(--bh) * .5);
+    color: var(--fg);
+  }
+  .bead .sym { opacity: 0; }
+  body.symbols .bead .sym { opacity: .85; }
+  .bead.lifted {
+    position: absolute; bottom: calc(var(--poleH) + var(--bh) * .45);
+    box-shadow: 0 8px 14px rgba(0,0,0,.3), inset 0 -2px 0 rgba(0,0,0,.25), inset 0 2px 0 rgba(255,255,255,.25);
+    animation: bob 1s ease-in-out infinite alternate;
+  }
+  @keyframes bob { from { transform: translateY(0); } to { transform: translateY(-4px); } }
+
+  /* modals */
+  .overlay {
+    position: fixed; inset: 0; background: rgba(30,25,20,.45);
+    display: none; align-items: center; justify-content: center; z-index: 20; padding: 16px;
+  }
+  .overlay.open { display: flex; }
+  .modal {
+    background: var(--panel); border-radius: 14px; box-shadow: var(--shadow);
+    padding: 20px 22px; width: 100%; max-width: 520px; max-height: 90vh; overflow: auto;
+  }
+  .modal h2 { margin: 0 0 14px; font-size: 20px; }
+  .modal .row { display: flex; gap: 8px; justify-content: flex-end; margin-top: 18px; flex-wrap: wrap; }
+  .range-row { display: flex; align-items: center; gap: 12px; }
+  .range-row input { flex: 1; }
+  .range-row output { font-size: 22px; font-weight: 700; width: 36px; text-align: center; }
+  .preview { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 14px; }
+  .preview span { width: 26px; height: 20px; border-radius: 6px; box-shadow: inset 0 0 0 1px rgba(0,0,0,.2); }
+  .hint { color: var(--muted); font-size: 13px; margin-top: 10px; line-height: 1.4; }
+  .slot {
+    display: flex; align-items: center; gap: 10px;
+    padding: 9px 4px; border-bottom: 1px solid #eee6dc;
+  }
+  .slot:last-child { border-bottom: 0; }
+  .slot .num { width: 26px; font-weight: 700; color: var(--muted); }
+  .slot .info { flex: 1; font-size: 14px; min-width: 0; }
+  .slot .info small { display: block; color: var(--muted); font-size: 12px; }
+  .slot .empty { color: var(--muted); font-style: italic; }
+  .slot button { padding: 5px 10px; font-size: 13px; }
+  .win h2 { font-size: 26px; text-align: center; }
+  .win p { text-align: center; font-size: 16px; color: var(--muted); }
+  #toast {
+    position: fixed; left: 50%; bottom: 24px; transform: translateX(-50%);
+    background: #2a2622; color: #fff; padding: 9px 16px; border-radius: 8px; font-size: 14px;
+    opacity: 0; transition: opacity .25s; pointer-events: none; z-index: 30;
+  }
+  #toast.show { opacity: 1; }
+</style>
+</head>
+<body>
+<header>
+  <h1>Bead Sort</h1>
+  <div class="stats">
+    <span>Colors <b id="sColors">–</b></span>
+    <span>Moves <b id="sMoves">0</b></span>
+    <span>Time <b id="sTime">0:00</b></span>
+    <span>Sorted <b id="sSorted">0</b></span>
+  </div>
+  <div class="spacer"></div>
+  <label class="toggle"><input type="checkbox" id="symToggle"> Symbols</label>
+  <button id="undoBtn" title="Undo (Ctrl+Z)">↶ Undo</button>
+  <button id="slotsBtn">💾 Save / Load</button>
+  <button id="newBtn" class="primary">＋ New Game</button>
+</header>
+
+<div id="board"><div id="rack"><div id="base"></div></div></div>
+
+<!-- New game -->
+<div class="overlay" id="newModal">
+  <div class="modal">
+    <h2>New game</h2>
+    <div class="range-row">
+      <span>Colors</span>
+      <input type="range" id="colorRange" min="5" max="15" value="8">
+      <output id="colorOut">8</output>
+    </div>
+    <div class="preview" id="colorPreview"></div>
+    <p class="hint">You get one rod per color plus one empty spare rod. Each rod holds as many beads as there are colors. Click a rod to pick up its top bead, then click another rod to drop it.</p>
+    <div class="row">
+      <button id="newCancel">Cancel</button>
+      <button id="newStart" class="primary">Start</button>
+    </div>
+  </div>
+</div>
+
+<!-- Save slots -->
+<div class="overlay" id="slotModal">
+  <div class="modal">
+    <h2>Save slots</h2>
+    <div id="slotList"></div>
+    <div class="row"><button id="slotClose">Close</button></div>
+  </div>
+</div>
+
+<!-- Win -->
+<div class="overlay" id="winModal">
+  <div class="modal win">
+    <h2>🎉 Sorted!</h2>
+    <p id="winText"></p>
+    <div class="row" style="justify-content:center">
+      <button id="winClose">Admire it</button>
+      <button id="winNew" class="primary">New Game</button>
+    </div>
+  </div>
+</div>
+
+<div id="toast"></div>
+
+<script>
+(() => {
+  // Ordered so that small games use the most distinct colors.
+  const COLORS = [
+    { name: 'Red',     c: '#e6194b', sym: '●' },
+    { name: 'Blue',    c: '#2f62d8', sym: '■' },
+    { name: 'Yellow',  c: '#ffe119', sym: '▲' },
+    { name: 'Green',   c: '#2ea84a', sym: '◆' },
+    { name: 'White',   c: '#f7f7f2', sym: '★' },
+    { name: 'Black',   c: '#1e1e1e', sym: '✚' },
+    { name: 'Orange',  c: '#f58231', sym: '♥' },
+    { name: 'Purple',  c: '#7b2fbe', sym: '♠' },
+    { name: 'Cyan',    c: '#3fd0f0', sym: '♣' },
+    { name: 'Magenta', c: '#f032e6', sym: '♦' },
+    { name: 'Brown',   c: '#8b5a2b', sym: '✖' },
+    { name: 'Lime',    c: '#bfef45', sym: '☀' },
+    { name: 'Navy',    c: '#0b1f6b', sym: '☾' },
+    { name: 'Pink',    c: '#ffb3c8', sym: '✿' },
+    { name: 'Olive',   c: '#808000', sym: '♪' },
+  ];
+  const SLOT_COUNT = 10;
+  const SLOT_KEY = 'beadsort.slots.v1';
+  const AUTO_KEY = 'beadsort.autosave.v1';
+
+  function fgFor(hex) {
+    const n = parseInt(hex.slice(1), 16);
+    const r = n >> 16, g = (n >> 8) & 255, b = n & 255;
+    return (0.299 * r + 0.587 * g + 0.114 * b) > 150 ? '#222' : '#fff';
+  }
+
+  const $ = id => document.getElementById(id);
+  const rack = $('rack');
+
+  let state = null;   // { n, rods: number[][], moves, history: [from,to][], elapsed, won }
+  let selected = -1;
+  let lastTick = Date.now();
+
+  // ---------- game logic ----------
+  function newGame(n) {
+    const beads = [];
+    for (let c = 0; c < n; c++) for (let k = 0; k < n; k++) beads.push(c);
+    let rods;
+    do {
+      for (let i = beads.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [beads[i], beads[j]] = [beads[j], beads[i]];
+      }
+      rods = [[]]; // rod 0 = empty spare at the side
+      for (let r = 0; r < n; r++) rods.push(beads.slice(r * n, (r + 1) * n));
+    } while (countSorted(rods, n) > 0);
+    state = { n, rods, moves: 0, history: [], elapsed: 0, won: false };
+    selected = -1;
+    afterChange(false);
+  }
+
+  function countSorted(rods, n) {
+    return rods.filter(r => r.length === n && r.every(c => c === r[0])).length;
+  }
+
+  function isWon() { return countSorted(state.rods, state.n) === state.n; }
+
+  function canDrop(to) { return state.rods[to].length < state.n; }
+
+  function move(from, to, record = true) {
+    const bead = state.rods[from].pop();
+    state.rods[to].push(bead);
+    if (record) { state.history.push([from, to]); state.moves++; }
+  }
+
+  function clickRod(i) {
+    if (!state || state.won) return;
+    if (selected === -1) {
+      if (state.rods[i].length) selected = i;
+    } else if (i === selected) {
+      selected = -1;
+    } else if (canDrop(i)) {
+      move(selected, i);
+      selected = -1;
+      afterChange(true);
+      return;
+    } else {
+      toast('That rod is full');
+      return;
+    }
+    render();
+  }
+
+  function undo() {
+    if (!state || !state.history.length) return;
+    const [from, to] = state.history.pop();
+    move(to, from, false);
+    state.moves++; // undo counts as a move
+    state.won = false;
+    selected = -1;
+    afterChange(false);
+  }
+
+  function afterChange(checkWin) {
+    if (checkWin && isWon()) {
+      state.won = true;
+      $('winText').textContent = `${state.n} colors sorted in ${state.moves} moves and ${fmtTime(state.elapsed)}.`;
+      setTimeout(() => openModal('winModal'), 250);
+    }
+    autosave();
+    render();
+  }
+
+  // ---------- rendering ----------
+  function layout() {
+    if (!state) return;
+    const board = $('board');
+    const W = board.clientWidth - 32, H = board.clientHeight - 50;
+    const rods = state.n + 1;
+    // slot width = bw * 1.15, plus one extra gap for the spare rod
+    const bwByW = W / ((rods + 0.8) * 1.15);
+    const bwByH = H / ((state.n + 2.6) * 0.62);
+    const bw = Math.max(18, Math.min(bwByW, bwByH, 74));
+    const bh = bw * 0.62;
+    rack.style.setProperty('--bw', bw + 'px');
+    rack.style.setProperty('--bh', bh + 'px');
+    rack.style.setProperty('--slot', bw * 1.15 + 'px');
+    rack.style.setProperty('--gap', bw * 0.8 + 'px');
+    rack.style.setProperty('--poleH', (state.n + 0.6) * bh + 'px');
+    rack.style.setProperty('--rodH', (state.n + 2.4) * bh + 'px');
+  }
+
+  function render() {
+    if (!state) return;
+    layout();
+    rack.querySelectorAll('.rod').forEach(e => e.remove());
+    const n = state.n;
+    state.rods.forEach((beads, i) => {
+      const rod = document.createElement('div');
+      rod.className = 'rod';
+      rod.style.width = 'var(--slot)';
+      rod.style.height = 'var(--rodH)';
+      if (i === 0) rod.classList.add('spare');
+      if (beads.length === n && beads.every(c => c === beads[0])) rod.classList.add('done');
+      if (selected !== -1 && i !== selected && beads.length < n) rod.classList.add('target');
+      const pole = document.createElement('div');
+      pole.className = 'pole';
+      rod.appendChild(pole);
+      beads.forEach((c, k) => {
+        const el = beadEl(c);
+        if (i === selected && k === beads.length - 1) el.classList.add('lifted');
+        rod.appendChild(el);
+      });
+      rod.addEventListener('click', () => clickRod(i));
+      rack.appendChild(rod);
+    });
+    $('sColors').textContent = n;
+    $('sMoves').textContent = state.moves;
+    $('sTime').textContent = fmtTime(state.elapsed);
+    $('sSorted').textContent = `${countSorted(state.rods, n)}/${n}`;
+    $('undoBtn').disabled = !state.history.length || state.won;
+  }
+
+  function beadEl(c) {
+    const col = COLORS[c];
+    const el = document.createElement('div');
+    el.className = 'bead';
+    el.style.setProperty('--c', col.c);
+    el.style.setProperty('--fg', fgFor(col.c));
+    el.title = col.name;
+    el.innerHTML = `<span class="sym">${col.sym}</span>`;
+    return el;
+  }
+
+  function fmtTime(s) {
+    s = Math.floor(s);
+    const h = Math.floor(s / 3600), m = Math.floor(s / 60) % 60, sec = s % 60;
+    return (h ? h + ':' + String(m).padStart(2, '0') : m) + ':' + String(sec).padStart(2, '0');
+  }
+
+  setInterval(() => {
+    const now = Date.now();
+    const dt = (now - lastTick) / 1000;
+    lastTick = now;
+    if (state && !state.won && !document.hidden && !anyModalOpen()) {
+      state.elapsed += dt;
+      $('sTime').textContent = fmtTime(state.elapsed);
+    }
+  }, 500);
+
+  // ---------- storage ----------
+  function readSlots() {
+    try {
+      const s = JSON.parse(localStorage.getItem(SLOT_KEY) || '[]');
+      return Array.from({ length: SLOT_COUNT }, (_, i) => s[i] || null);
+    } catch { return Array(SLOT_COUNT).fill(null); }
+  }
+  function writeSlots(slots) {
+    try { localStorage.setItem(SLOT_KEY, JSON.stringify(slots)); return true; }
+    catch { toast('Could not save – storage unavailable'); return false; }
+  }
+  function snapshot() {
+    return JSON.parse(JSON.stringify({ ...state, savedAt: Date.now() }));
+  }
+  function restore(snap) {
+    state = { n: snap.n, rods: snap.rods, moves: snap.moves, history: snap.history || [],
+              elapsed: snap.elapsed || 0, won: !!snap.won };
+    selected = -1;
+    lastTick = Date.now();
+    afterChange(false);
+  }
+  function autosave() {
+    try { localStorage.setItem(AUTO_KEY, JSON.stringify(snapshot())); } catch {}
+  }
+
+  function renderSlots() {
+    const slots = readSlots();
+    const list = $('slotList');
+    list.innerHTML = '';
+    slots.forEach((s, i) => {
+      const row = document.createElement('div');
+      row.className = 'slot';
+      const info = s
+        ? `<div class="info">${s.n} colors · ${s.moves} moves · ${fmtTime(s.elapsed)} · ${countSorted(s.rods, s.n)}/${s.n} sorted${s.won ? ' ✓' : ''}
+             <small>${new Date(s.savedAt).toLocaleString()}</small></div>`
+        : `<div class="info empty">Empty</div>`;
+      row.innerHTML = `<span class="num">${i + 1}</span>${info}`;
+      const save = btn('Save', () => {
+        if (s && !confirm(`Overwrite slot ${i + 1}?`)) return;
+        slots[i] = snapshot();
+        if (writeSlots(slots)) { toast(`Saved to slot ${i + 1}`); renderSlots(); }
+      });
+      row.appendChild(save);
+      if (s) {
+        row.appendChild(btn('Load', () => { restore(s); closeModal('slotModal'); toast(`Loaded slot ${i + 1}`); }));
+        const del = btn('✕', () => {
+          if (!confirm(`Delete slot ${i + 1}?`)) return;
+          slots[i] = null; writeSlots(slots); renderSlots();
+        });
+        del.classList.add('danger'); del.title = 'Delete';
+        row.appendChild(del);
+      }
+      list.appendChild(row);
+    });
+  }
+  function btn(text, fn) {
+    const b = document.createElement('button');
+    b.textContent = text; b.addEventListener('click', fn); return b;
+  }
+
+  // ---------- modals & UI ----------
+  function openModal(id) { $(id).classList.add('open'); }
+  function closeModal(id) { $(id).classList.remove('open'); lastTick = Date.now(); }
+  function anyModalOpen() { return !!document.querySelector('.overlay.open'); }
+
+  let toastTimer;
+  function toast(msg) {
+    const t = $('toast'); t.textContent = msg; t.classList.add('show');
+    clearTimeout(toastTimer); toastTimer = setTimeout(() => t.classList.remove('show'), 1600);
+  }
+
+  function updatePreview() {
+    const n = +$('colorRange').value;
+    $('colorOut').textContent = n;
+    $('colorPreview').innerHTML = COLORS.slice(0, n)
+      .map(c => `<span title="${c.name}" style="background:${c.c}"></span>`).join('');
+  }
+
+  $('newBtn').onclick = () => {
+    if (state) $('colorRange').value = state.n;
+    updatePreview(); openModal('newModal');
+  };
+  $('colorRange').oninput = updatePreview;
+  $('newCancel').onclick = () => closeModal('newModal');
+  $('newStart').onclick = () => { closeModal('newModal'); newGame(+$('colorRange').value); };
+  $('slotsBtn').onclick = () => { renderSlots(); openModal('slotModal'); };
+  $('slotClose').onclick = () => closeModal('slotModal');
+  $('winClose').onclick = () => closeModal('winModal');
+  $('winNew').onclick = () => { closeModal('winModal'); $('newBtn').click(); };
+  $('undoBtn').onclick = undo;
+  $('symToggle').onchange = e => {
+    document.body.classList.toggle('symbols', e.target.checked);
+    try { localStorage.setItem('beadsort.symbols', e.target.checked ? '1' : '0'); } catch {}
+  };
+  document.querySelectorAll('.overlay').forEach(o =>
+    o.addEventListener('click', e => { if (e.target === o) closeModal(o.id); }));
+  document.addEventListener('keydown', e => {
+    if (e.key === 'Escape') {
+      const open = document.querySelector('.overlay.open');
+      if (open) closeModal(open.id); else if (selected !== -1) { selected = -1; render(); }
+    }
+    if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z') { e.preventDefault(); undo(); }
+  });
+  window.addEventListener('resize', layout);
+
+  // ---------- boot ----------
+  try {
+    if (localStorage.getItem('beadsort.symbols') === '1') {
+      $('symToggle').checked = true; document.body.classList.add('symbols');
+    }
+  } catch {}
+  let resumed = false;
+  try {
+    const a = JSON.parse(localStorage.getItem(AUTO_KEY) || 'null');
+    if (a && a.rods && a.n >= 5 && a.n <= 15) { restore(a); resumed = true; }
+  } catch {}
+  if (!resumed) { newGame(8); updatePreview(); openModal('newModal'); }
+})();
+</script>
+</body>
+</html>
